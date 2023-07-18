@@ -1,0 +1,326 @@
+#INCLUDE "tlpp-core.th"
+#INCLUDE "tlpp-rest.th"
+
+//-------------------------------INDEX: LISTAR TODOS OS REGISTROS---------------------------------
+
+Class classIndex
+
+    Public Method New() Constructor 
+
+    @get("/fornecedor")
+    Public Method Index()
+
+EndClass 
+
+Method New() Class classIndex
+Return Self 
+
+Method Index() Class classIndex
+
+    local cSql as character
+    local cAlias as character
+
+    cSql := "Select A2_COD, A2_NOME, A2_END, A2_BAIRRO, A2_EST, A2_MUN, A2_CEP, A2_TIPO from " + RetSqlName("SA2") + " where D_E_L_E_T_ = ' '"
+
+    cAlias := GetNextAlias()
+    DbUseArea(.t., 'TOPCONN', TcGenQry(,, cSql), cAlias, .f., .t.)
+
+    if (cAlias)->(EoF()) 
+        oRest:setStatusCode(404)
+    else
+        while !(cAlias)->(EoF())
+
+            /*jData := JsonObject():New()
+            jData["A2_COD"] := ALLTRIM((cAlias)->A2_COD)
+            jData["A2_NOME"] := ALLTRIM((cAlias)->A2_NOME)
+            jData["A2_END"] := ALLTRIM((cAlias)->A2_END)
+            jData["A2_BAIRRO"] := ALLTRIM((cAlias)->A2_BAIRRO)
+            jData["A2_EST"] := ALLTRIM((cAlias)->A2_EST)
+            jData["A2_MUN"] := ALLTRIM((cAlias)->A2_MUN)
+            jData["A2_CEP"] := ALLTRIM((cAlias)->A2_CEP)
+            jData["A2_TIPO"] := ALLTRIM((cAlias)->A2_TIPO)
+            */
+
+            (cAlias)->(DbSkip())
+        enddo
+    endif
+
+    (cAlias)->(DbCloseArea())
+
+    oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+    //oRest:setResponse(jData:toJson())
+
+return .t.
+
+//-------------------------------SHOW: LISTAR UM REGISTRO---------------------------------
+
+Class classShow
+
+    Public Method New() Constructor 
+
+    @get("/fornecedor/:codigo")
+    Public Method Show()
+
+EndClass 
+
+Method New() Class classShow
+Return Self 
+
+Method Show() Class classShow
+    Local jReq As Json 
+    Local cCode AS Character
+    local cSql as character
+    local cAlias as character
+    local jData as Json
+    
+    jReq := oRest:getPathParamsRequest()
+    cCode := jReq:GetJsonText("codigo")
+
+    cSql := "Select A2_COD, A2_NOME, A2_END, A2_BAIRRO, A2_EST, A2_MUN, A2_CEP, A2_TIPO from " + RetSqlName("SA2") + " where A2_FILIAL = '" + xFilial("SA2") + "' and A2_COD = '" + cCode + "' and D_E_L_E_T_ = ' '"
+
+
+    cAlias := GetNextAlias()
+    DbUseArea(.t., 'TOPCONN', TcGenQry(,, cSql), cAlias, .f., .t.)
+
+    if (cAlias)->(EoF()) 
+        oRest:setStatusCode(404)
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": "Nao foi encontrado um fornecedor com esse codigo."})
+    else
+        jData := JsonObject():New()
+        jData["A2_COD"] := ALLTRIM((cAlias)->A2_COD)
+        jData["A2_NOME"] := ALLTRIM((cAlias)->A2_NOME)
+        jData["A2_END"] := ALLTRIM((cAlias)->A2_END)
+        jData["A2_BAIRRO"] := ALLTRIM((cAlias)->A2_BAIRRO)
+        jData["A2_EST"] := ALLTRIM((cAlias)->A2_EST)
+        jData["A2_MUN"] := ALLTRIM((cAlias)->A2_MUN)
+        jData["A2_CEP"] := ALLTRIM((cAlias)->A2_CEP)
+        jData["A2_TIPO"] := ALLTRIM((cAlias)->A2_TIPO)
+
+        (cAlias)->(DbCloseArea())
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse(jData:toJson())
+    endif
+
+Return .t.
+
+//-------------------------------STORE: CRIAR UM REGISTRO---------------------------------
+
+Class classStore
+
+    Public Method New() Constructor 
+
+    @post("/fornecedor/store")
+    Public Method Store()
+
+EndClass 
+
+Method New() Class classStore
+Return Self 
+
+Method Store() Class classStore
+
+    local jBody as json
+
+    jBody := JsonObject():new()
+    jBody:fromJson( oRest:GetBodyRequest() )
+
+    if (isValid(jBody, .t.) .and. !exists(jBody["A2_COD"]))
+
+        SA2->(DbSetOrder(1))
+        SA2->(RecLock("SA2", .t.))
+        SA2->A2_COD := jBody["A2_COD"]
+        SA2->A2_NOME := jBody["A2_NOME"]
+        SA2->A2_END := jBody["A2_END"]
+        SA2->A2_BAIRRO := jBody["A2_BAIRRO"]
+        SA2->A2_EST := jBody["A2_EST"]
+        SA2->A2_MUN := jBody["A2_MUN"]
+        SA2->A2_CEP := jBody["A2_CEP"]
+        SA2->A2_TIPO := jBody["A2_TIPO"]
+        SA2->(MsUnlock())
+
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": "Incluido com sucesso."})
+
+    elseif exists(jBody["A2_COD"])
+        oRest:setStatusCode(409)
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": "Conflito ao incluir o usuario. JÃ¡ existe um usuario com o mesmo codigo."})
+    else
+        oRest:setStatusCode(400)
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": "Requisicao invalida. O corpo da requisicao deve conter um JSON valido."})
+    endif
+
+Return .t.
+
+//-------------------------------UPDATE: ALTERAR UM REGISTRO---------------------------------
+
+Class classUpdate
+
+    Public Method New() Constructor 
+
+    @put("/fornecedor/:codigo/update")
+    Public Method Update()
+
+EndClass 
+
+Method New() Class classUpdate
+Return Self 
+
+Method Update() Class classUpdate
+
+    Local jReq As Json 
+    Local cCode AS character
+    local jBody as json
+    local cQryUpd as character
+    local nErro as numeric
+    local nStatusCode as numeric
+    local cMsg as character
+    nStatusCode := 200
+    cMsg := "Alteracao concluida."
+
+    jBody := JsonObject():new()
+    jBody:fromJson( oRest:GetBodyRequest() )
+    jReq := oRest:getPathParamsRequest()
+    cCode := jReq:GetJsonText("codigo")
+
+    if !exists(cCode)
+        oRest:setStatusCode(404)
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": "O registro solicitado nao foi encontrado no banco de dados."})
+    elseif (isValid(jBody, .f.))
+
+        Begin Transaction
+        cQryUpd := " UPDATE " + RetSqlName("SA2") + " "
+        cQryUpd += "     SET A2_NOME = '" + jBody["A2_NOME"] + "', "
+        cQryUpd += "A2_END = '" + jBody["A2_END"] + "', "
+        cQryUpd += "A2_BAIRRO = '" + jBody["A2_BAIRRO"] + "', "
+        cQryUpd += "A2_EST = '" + jBody["A2_EST"] + "', "
+        cQryUpd += "A2_MUN = '" + jBody["A2_MUN"] + "', "
+        cQryUpd += "A2_CEP = '" + jBody["A2_CEP"] + "', "
+        cQryUpd += "A2_TIPO = '" + jBody["A2_TIPO"] + "' "
+        cQryUpd += " WHERE "
+        cQryUpd += "     A2_FILIAL = '" + FWxFilial('SA2') + "' "
+        cQryUpd += "     AND A2_COD = '" + cCode + "' "
+        cQryUpd += "     AND D_E_L_E_T_ = ' ' "
+    
+        nErro := TcSqlExec(cQryUpd)
+        
+        //Se houve erro
+        If nErro != 0
+            DisarmTransaction()
+            nStatusCode := 500
+            cMsg := "Ocorreu um erro interno no servidor durante a tentativa de alteração do registro."
+        EndIf
+        End Transaction
+        oRest:setStatusCode(nStatusCode)
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": cMsg})
+    else
+        oRest:setStatusCode(400)
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": "Requisicao invalida. O corpo da requisicao deve conter um JSON valido."})
+    endif
+
+Return .t.
+
+//-------------------------------DESTROY: DELETAR UM REGISTRO---------------------------------
+
+Class classDestroy
+
+    Public Method New() Constructor 
+
+    @delete("/fornecedor/:codigo/destroy")
+    Public Method Destroy()
+
+EndClass 
+
+Method New() Class classDestroy
+Return Self 
+
+Method Destroy() Class classDestroy
+
+    Local jReq As Json 
+    Local cCode AS character
+    local cQryUpd as character
+    local nErro as numeric
+    local nStatusCode as numeric
+    local cMsg as character
+    nStatusCode := 200
+    cMsg := "Exclusao concluida."
+
+    jReq := oRest:getPathParamsRequest()
+    cCode := jReq:GetJsonText("codigo")
+
+    if !exists(cCode)
+        oRest:setStatusCode(404)
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": "O registro solicitado nao foi encontrado no banco de dados."})
+    else
+
+        Begin Transaction
+        cQryUpd := " UPDATE " + RetSqlName("SA2") + " "
+        cQryUpd += "     SET D_E_L_E_T_ = '*'"
+        cQryUpd += " WHERE "
+        cQryUpd += "     A2_FILIAL = '" + FWxFilial('SA2') + "' "
+        cQryUpd += "     AND A2_COD = '" + cCode + "' "
+        cQryUpd += "     AND D_E_L_E_T_ = ' ' "
+    
+        nErro := TcSqlExec(cQryUpd)
+        
+        //Se houve erro
+        If nErro != 0
+            DisarmTransaction()
+            nStatusCode := 500
+            cMsg := "Ocorreu um erro interno no servidor durante a tentativa de alteração do registro."
+        EndIf
+        End Transaction
+        oRest:setStatusCode(nStatusCode)
+        oRest:setKeyHeaderResponse('Content-Type', 'application/json')
+        oRest:setResponse({"mensagem": cMsg})
+    endif
+
+Return .t.
+
+//-------------------------------HELPERS---------------------------------
+
+static function isValid(jDados as json, lIncluiCodigo as logical)
+
+    Local lValid As Logical 
+    Local aProperties As Array 
+    Local nI As Numeric
+
+    lValid := .t.
+
+    aProperties := {"A2_NOME", "A2_END", "A2_BAIRRO", "A2_EST", "A2_MUN", "A2_CEP", "A2_TIPO"}
+    if lIncluiCodigo
+        AADD( aProperties, "A2_COD" )
+    endif
+    
+    For nI := 1 To Len(aProperties)
+        If ! jDados:hasProperty(aProperties[nI])
+            lValid := .f.
+            Exit
+        EndIf 
+    Next nI
+
+RETURN lValid
+
+static function exists(cCodigo as character)
+    local cSql as character
+    local lExist as logical
+    lExist = .t.
+
+    cSql := "Select A2_COD from " + RetSqlName("SA2") + " where A2_FILIAL = '" + xFilial("SA2") + "' and A2_COD = '" + cCodigo + "' and D_E_L_E_T_ = ' '"
+
+    cAlias := GetNextAlias()
+    DbUseArea(.t., 'TOPCONN', TcGenQry(,, cSql), cAlias, .f., .t.)
+
+    if (cAlias)->(EoF()) 
+        lExist = .f.
+    endif
+
+    (cAlias)->(DbCloseArea())
+
+return lExist
